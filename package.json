@@ -1,0 +1,25 @@
+{
+  "name": "turbo_wallet_lib",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "bin": {
+    "buildTurbo": "dist/cli/buildTurbo.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/cli-progress": "^3.11.6",
+    "@types/node": "^22.5.5",
+    "typescript": "^5.6.2"
+  },
+  "dependencies": {
+    "@ton/sandbox": "^0.20.0",
+    "@ton/ton": "^15.0.0",
+    "arg": "^5.0.2",
+    "cli-progress": "^3.12.0"
+  }
+}
