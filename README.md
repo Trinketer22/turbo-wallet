@@ -19,6 +19,7 @@ Which is currently crucial for any mass sending task.
 ### Build
 
 ``` shell
+ npm i
  npm run build
 ```
 
