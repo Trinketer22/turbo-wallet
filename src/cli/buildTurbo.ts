@@ -2,7 +2,7 @@
 import { Blockchain } from '@ton/sandbox';
 import { findLocalJetton, loadContracts } from '../lib/turboWallet';
 import { Address } from '@ton/ton';
-import { open, readFile } from 'node:fs/promises';
+import { open, readFile, writeFile } from 'node:fs/promises';
 import arg from 'arg';
 import { ShardedFactory } from '../lib/ShardedFactory';
 import { ShardedContract } from '../lib/ShardedContract';
@@ -13,7 +13,8 @@ function help() {
     console.log("--type <your contract type> (default HighloadV3)");
     console.log("--testnet [is testnet?]");
     console.log("--api-key [Toncenter api key]");
-    console.log("--preferred-shard [prefered shard index]");
+    console.log("--preferred-shard [prefered shard index or comma separated list of them]");
+    console.log("--out [path to output file]");
     console.log(`${__filename} --wallet <my-wallet> <path-to-jetton-list>`);
 }
 function supportedTypes() {
@@ -38,7 +39,8 @@ export async function run() {
         '--type': String,
         '--api-key': String,
         '--testnet': Boolean,
-        '--preferred-shard': Number,
+        '--preferred-shard': String,
+        '--out': String
     }, {stopAtPositional: true});
 
     const contractType = (args['--type'] ?? 'HighloadV3').toLowerCase();
@@ -56,9 +58,15 @@ export async function run() {
         help();
         return;
     }
+    let shards = new Set<number>();
     if(args['--preferred-shard']) {
-        if(args['--preferred-shard'] < 0 || args['--preferred-shard'] > 15) {
-            throw RangeError(`Shard value should be from 0 to 15`);
+        const testShards = args['--preferred-shard'].split(',');
+        for(let testShard of testShards) {
+            const shardIdx = Number(testShard);
+            if(shardIdx < 0 || shardIdx > 15) {
+                throw RangeError(`Shard value should be from 0 to 15`);
+            }
+            shards.add(shardIdx);
         }
     }
     const isTestnet = args['--testnet'];
@@ -93,16 +101,45 @@ export async function run() {
             return;
     }
 
-    const res  = await findLocalJetton(blockchain, sharded, myJettons, {
-        preferredShard: args['--preferred-shard'],
-        displayProgress: true
-    });
-    console.log("Found nonce:", JSON.stringify(res.options, (k, v) => {
-        if(k == 'publicKey') {
-            return undefined;
+    const stringifyResult = (res: Awaited<ReturnType<typeof findLocalJetton>>) => {
+        return JSON.stringify(res, (k, v) => {
+            if(k == 'publicKey') {
+                return undefined;
+            }
+            return v;
+        }, 2)
+    }
+
+    let results: string[] = [];
+    if(shards.size > 0) {
+        for(let shard of shards) {
+            const res = await findLocalJetton(blockchain, sharded, myJettons, {
+                preferredShard: shard,
+                displayProgress: true
+            });
+            results.push(stringifyResult(res));
+            console.log(`Nonce for shard ${res.prefix_shard} found!`);
         }
-        return v;
-    }, 2));
+    }
+    else {
+        const res = await findLocalJetton(blockchain, sharded, myJettons, {
+            displayProgress: true
+        });
+        results.push(stringifyResult(res));
+        console.log(`Nonce for shard ${res.prefix_shard} found!`);
+    }
+    if(args['--out']) {
+        try {
+            await writeFile(args['--out'], `${results.join("\n")}\n`, {encoding: 'utf8'});
+        }
+        catch(e) {
+            console.log(`Failed to write to file ${args['--out']} ${e}`);
+            console.log("Nonces:", results);
+        }
+    }
+    else {
+        console.log("Nonces:", results);
+    }
 }
 
 if(require.main == module) {
