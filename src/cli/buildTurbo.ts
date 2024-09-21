@@ -11,6 +11,7 @@ const supported = ['HighloadV3', 'HighloadV2'];
 function help() {
     console.log("--contract <your contract address>");
     console.log("--type <your contract type> (default HighloadV3)");
+    console.log("--testnet [is testnet?]");
     console.log("--api-key [Toncenter api key]");
     console.log("--preferred-shard [prefered shard index]");
     console.log(`${__filename} --wallet <my-wallet> <path-to-jetton-list>`);
@@ -36,6 +37,7 @@ export async function run() {
         '--contract': String,
         '--type': String,
         '--api-key': String,
+        '--testnet': Boolean,
         '--preferred-shard': Number,
     }, {stopAtPositional: true});
 
@@ -59,12 +61,13 @@ export async function run() {
             throw RangeError(`Shard value should be from 0 to 15`);
         }
     }
+    const isTestnet = args['--testnet'];
 
     const myContract = Address.parse(args['--contract']);
     const myJettons  = await readJettons(args._[0]);
 
     const blockchain = await Blockchain.create();
-    const contracts  = await loadContracts([...myJettons, myContract], blockchain, args['--api-key']);
+    const contracts  = await loadContracts([...myJettons, myContract], blockchain, isTestnet, args['--api-key']);
 
     const shardedFactory = new ShardedFactory(blockchain);
 
