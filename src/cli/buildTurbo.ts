@@ -1,15 +1,23 @@
 #!/usr/bin/env node
 import { Blockchain } from '@ton/sandbox';
-import { findLocalHighload, loadContracts } from '../lib/turboWallet';
+import { findLocalJetton, loadContracts } from '../lib/turboWallet';
 import { Address } from '@ton/ton';
 import { open, readFile } from 'node:fs/promises';
 import arg from 'arg';
+import { ShardedFactory } from '../lib/ShardedFactory';
+import { ShardedContract } from '../lib/ShardedContract';
 
+const supported = ['HighloadV3', 'HighloadV2'];
 function help() {
-    console.log("--wallet <your highload wallet address>");
+    console.log("--contract <your contract address>");
+    console.log("--type <your contract type> (default HighloadV3)");
     console.log("--api-key [Toncenter api key]");
     console.log("--preferred-shard [prefered shard index]");
     console.log(`${__filename} --wallet <my-wallet> <path-to-jetton-list>`);
+}
+function supportedTypes() {
+    console.log(`Supported contract types:\n`);
+    console.log(supported.join('\n'));
 }
 async function readJettons(path: string) {
     const jettonsFile = await open(path, 'r');
@@ -25,13 +33,19 @@ async function readJettons(path: string) {
 }
 export async function run() {
     const args = arg({
-        '--wallet': String,
+        '--contract': String,
+        '--type': String,
         '--api-key': String,
         '--preferred-shard': Number,
     }, {stopAtPositional: true});
 
-    if(!args['--wallet']) {
-        console.log("Wallet address is required!");
+    const contractType = (args['--type'] ?? 'HighloadV3').toLowerCase();
+    if(contractType == '?') {
+        supportedTypes();
+        return;
+    }
+    if(!args['--contract']) {
+        console.log("Contract address is required!");
         help();
         return;
     }
@@ -46,28 +60,46 @@ export async function run() {
         }
     }
 
-    const myHighload = Address.parse(args['--wallet']);
-    const myJettons = await readJettons(args._[0]);
-
-    /*
-    const usdt = Address.parse('EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs');
-    const not  = Address.parse('EQAvlWFDxGF2lXm67y4yzC17wYKD9A0guwPkMs1gOsM__NOT');
-    const dawgs = Address.parse('EQCvxJy4eG8hyHBFsZ7eePxrRsUQSFE_jpptRAYBmcG_DOGS');
-    const myHighload = Address.parse('UQA27zG4PZlQtKzBdkW_hmDdug6LPuNnuWIltTeT44pxZJwo');
-    */
+    const myContract = Address.parse(args['--contract']);
+    const myJettons  = await readJettons(args._[0]);
 
     const blockchain = await Blockchain.create();
-    const contracts  = await loadContracts([...myJettons, myHighload], blockchain, args['--api-key']);
+    const contracts  = await loadContracts([...myJettons, myContract], blockchain, args['--api-key']);
 
-    const highloadState = contracts.get(myHighload.toRawString());
-    if(!highloadState) {
-        throw new Error("Failed to load highload contract");
+    const shardedFactory = new ShardedFactory(blockchain);
+
+    const contractState = contracts.get(myContract.toRawString());
+    if(!contractState) {
+        throw new Error("Failed to load contract");
     }
-    const res  = await findLocalHighload(blockchain, myHighload, highloadState.code, myJettons, {
+    let sharded: ShardedContract;
+    switch(contractType) {
+        case 'highloadv3':
+            sharded = await shardedFactory.createHighloadFromAddress(myContract,
+                                                                     'subwallet', 'V3',
+                                                                     contractState.code);
+            break;
+        case 'highloadv2':
+            sharded = await shardedFactory.createHighloadFromAddress(myContract,
+                                                                     'subwallet', 'V2',
+                                                                     contractState.code);
+            break;
+        default:
+            console.log(`Contract type ${args['--type']} is not supported`);
+            help();
+            return;
+    }
+
+    const res  = await findLocalJetton(blockchain, sharded, myJettons, {
         preferredShard: args['--preferred-shard'],
         displayProgress: true
     });
-    console.log("Found wallet:", res);
+    console.log("Found nonce:", JSON.stringify(res.options, (k, v) => {
+        if(k == 'publicKey') {
+            return undefined;
+        }
+        return v;
+    }, 2));
 }
 
 if(require.main == module) {

@@ -2,6 +2,8 @@ import { Address, beginCell, Cell, TonClient } from '@ton/ton';
 import { Blockchain, createShardAccount } from '@ton/sandbox';
 import { HighloadWalletV3 } from '../wrappers/HighloadWalletV3';
 import cliProgress from 'cli-progress';
+import { ShardedHighloadV3 } from './contracts/HighloadWalletV3';
+import { ShardedContract } from './ShardedContract';
 
 export async function loadContracts(addr_list: Address[], bc: Blockchain, api_key?: string) {
     const client = new TonClient({
@@ -49,19 +51,13 @@ type VerboseRes = {
     jettons: string[]
 }
 
-export async function findLocalHighload(blockchain: Blockchain, highloadAddr: Address, code: Cell, jetton_list: Address[], options: {preferredShard?: number, displayProgress: boolean}) {
+export async function findLocalJetton<T extends ShardedContract>(blockchain: Blockchain, testWallet: T, jetton_list: Address[], options: {preferredShard?: number, displayProgress: boolean}) {
 
     const preferredShard = options.preferredShard;
-    const curWallet = blockchain.openContract(HighloadWalletV3.createFromAddress(highloadAddr));
-
-    const timeout   = await curWallet.getTimeout();
-    const publicKey = await curWallet.getPublicKey();
-    let nextSubwallet = await curWallet.getSubwalletId();
 
     let allMatch: boolean;
     let walletShard: number
     let iterCount = 0;
-    const sizeBoundry = (2 ** 32) - 1;
     let expIter = 2 ** (4 * jetton_list.length);
     let verbose: VerboseRes | undefined;
 
@@ -76,28 +72,24 @@ export async function findLocalHighload(blockchain: Blockchain, highloadAddr: Ad
 
     do {
         verbose = undefined;
-        nextSubwallet = (nextSubwallet + 1) % sizeBoundry;
         iterCount++;
         allMatch = true;
-        const testWallet = HighloadWalletV3.createFromConfig({
-            publicKey,
-            timeout,
-            subwalletId: nextSubwallet 
-        }, code);
-        walletShard = testWallet.address.hash[0] >> 4;
+        await testWallet.next();
         if(preferredShard) {
-            if(walletShard !== preferredShard) {
+            if(!testWallet.inShard(preferredShard)) {
                 allMatch = false;
             }
         }
         if(allMatch) {
+            const walletShard = testWallet.shard;
+
             verbose = {
-                resWallet: testWallet.address.toRawString(),
+                resWallet: testWallet.contract.address.toRawString(),
                 jettons: []
             };
             for(let jetton of jetton_list) {
                 const smc = await blockchain.getContract(jetton);
-                const res = await smc.get('get_wallet_address', [{type: 'slice', cell: beginCell().storeAddress(testWallet.address).endCell()}]);
+                const res = await smc.get('get_wallet_address', [{type: 'slice', cell: beginCell().storeAddress(testWallet.contract.address).endCell()}]);
                 const resAddr = res.stackReader.readAddress();
                 const resShard = resAddr.hash[0] >> 4;
                 if(resShard !== walletShard) {
@@ -113,5 +105,5 @@ export async function findLocalHighload(blockchain: Blockchain, highloadAddr: Ad
     } while(!allMatch);
     bar.stop();
 
-    return {subwallet: nextSubwallet, prefix_shard: walletShard, verbose};
+    return {options: testWallet.options, prefix_shard: testWallet.shard, verbose};
 }
