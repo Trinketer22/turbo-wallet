@@ -19,13 +19,15 @@ Which is currently crucial for any mass sending task.
 ### Build
 
 ``` shell
+ npm i
  npm run build
 ```
 
 ### Help
 
 ``` shell
---wallet <your highload wallet address>
+--contract <your highload wallet address>
+--type <type of your contract> (HighloadV3 by default)
 --api-key [Toncenter api key]
 --preferred-shard [prefered shard index]
 ```
@@ -33,10 +35,13 @@ Which is currently crucial for any mass sending task.
 ### Example
 
 ``` shell
-npx buildTurbo --api-key <your toncenter api key> --preferred-shard [shard-index] --wallet [your highload wallet address] <path to file with jetton minter addresses>
+npx buildTurbo --api-key [your toncenter api key> --type [contract type] --preferred-shard [shard-index] --wallet [your highload wallet address] <path to file with jetton minter addresses>
 ```
 
 ## Currently supported contracts
 
-Currently, only [highload wallet](https://github.com/ton-blockchain/highload-wallet-contract-v3) is supported.  
-I think sort of plugin system is in order here in the future.
+Currently supported:
+- [HighloadV3](https://github.com/ton-blockchain/highload-wallet-contract-v3) is supported.  
+- [HighloadV2](https://github.com/ton-blockchain/ton/blob/master/crypto/smartcont/highload-wallet-v2-code.fc)
+
+To list supported types call `npx buildTurbo --type ?`;

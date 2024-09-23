@@ -1,15 +1,25 @@
 #!/usr/bin/env node
 import { Blockchain } from '@ton/sandbox';
-import { findLocalHighload, loadContracts } from '../lib/turboWallet';
+import { findLocalJetton, loadContracts } from '../lib/turboWallet';
 import { Address } from '@ton/ton';
-import { open, readFile } from 'node:fs/promises';
+import { open, readFile, writeFile } from 'node:fs/promises';
 import arg from 'arg';
+import { ShardedFactory } from '../lib/ShardedFactory';
+import { ShardedContract } from '../lib/ShardedContract';
 
+const supported = ['HighloadV3', 'HighloadV2'];
 function help() {
-    console.log("--wallet <your highload wallet address>");
+    console.log("--contract <your contract address>");
+    console.log("--type <your contract type> (default HighloadV3)");
+    console.log("--testnet [is testnet?]");
     console.log("--api-key [Toncenter api key]");
-    console.log("--preferred-shard [prefered shard index]");
+    console.log("--preferred-shard [prefered shard index or comma separated list of them]");
+    console.log("--out [path to output file]");
     console.log(`${__filename} --wallet <my-wallet> <path-to-jetton-list>`);
+}
+function supportedTypes() {
+    console.log(`Supported contract types:\n`);
+    console.log(supported.join('\n'));
 }
 async function readJettons(path: string) {
     const jettonsFile = await open(path, 'r');
@@ -25,13 +35,21 @@ async function readJettons(path: string) {
 }
 export async function run() {
     const args = arg({
-        '--wallet': String,
+        '--contract': String,
+        '--type': String,
         '--api-key': String,
-        '--preferred-shard': Number,
+        '--testnet': Boolean,
+        '--preferred-shard': String,
+        '--out': String
     }, {stopAtPositional: true});
 
-    if(!args['--wallet']) {
-        console.log("Wallet address is required!");
+    const contractType = (args['--type'] ?? 'HighloadV3').toLowerCase();
+    if(contractType == '?') {
+        supportedTypes();
+        return;
+    }
+    if(!args['--contract']) {
+        console.log("Contract address is required!");
         help();
         return;
     }
@@ -40,34 +58,88 @@ export async function run() {
         help();
         return;
     }
+    let shards = new Set<number>();
     if(args['--preferred-shard']) {
-        if(args['--preferred-shard'] < 0 || args['--preferred-shard'] > 15) {
-            throw RangeError(`Shard value should be from 0 to 15`);
+        const testShards = args['--preferred-shard'].split(',');
+        for(let testShard of testShards) {
+            const shardIdx = Number(testShard);
+            if(shardIdx < 0 || shardIdx > 15) {
+                throw RangeError(`Shard value should be from 0 to 15`);
+            }
+            shards.add(shardIdx);
         }
     }
+    const isTestnet = args['--testnet'];
 
-    const myHighload = Address.parse(args['--wallet']);
-    const myJettons = await readJettons(args._[0]);
-
-    /*
-    const usdt = Address.parse('EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs');
-    const not  = Address.parse('EQAvlWFDxGF2lXm67y4yzC17wYKD9A0guwPkMs1gOsM__NOT');
-    const dawgs = Address.parse('EQCvxJy4eG8hyHBFsZ7eePxrRsUQSFE_jpptRAYBmcG_DOGS');
-    const myHighload = Address.parse('UQA27zG4PZlQtKzBdkW_hmDdug6LPuNnuWIltTeT44pxZJwo');
-    */
+    const myContract = Address.parse(args['--contract']);
+    const myJettons  = await readJettons(args._[0]);
 
     const blockchain = await Blockchain.create();
-    const contracts  = await loadContracts([...myJettons, myHighload], blockchain, args['--api-key']);
+    const contracts  = await loadContracts([...myJettons, myContract], blockchain, isTestnet, args['--api-key']);
 
-    const highloadState = contracts.get(myHighload.toRawString());
-    if(!highloadState) {
-        throw new Error("Failed to load highload contract");
+    const shardedFactory = new ShardedFactory(blockchain);
+
+    const contractState = contracts.get(myContract.toRawString());
+    if(!contractState) {
+        throw new Error("Failed to load contract");
     }
-    const res  = await findLocalHighload(blockchain, myHighload, highloadState.code, myJettons, {
-        preferredShard: args['--preferred-shard'],
-        displayProgress: true
-    });
-    console.log("Found wallet:", res);
+    let sharded: ShardedContract;
+    switch(contractType) {
+        case 'highloadv3':
+            sharded = await shardedFactory.createHighloadFromAddress(myContract,
+                                                                     'subwallet', 'V3',
+                                                                     contractState.code);
+            break;
+        case 'highloadv2':
+            sharded = await shardedFactory.createHighloadFromAddress(myContract,
+                                                                     'subwallet', 'V2',
+                                                                     contractState.code);
+            break;
+        default:
+            console.log(`Contract type ${args['--type']} is not supported`);
+            help();
+            return;
+    }
+
+    const stringifyResult = (res: Awaited<ReturnType<typeof findLocalJetton>>) => {
+        return JSON.stringify(res, (k, v) => {
+            if(k == 'publicKey') {
+                return undefined;
+            }
+            return v;
+        }, 2)
+    }
+
+    let results: string[] = [];
+    if(shards.size > 0) {
+        for(let shard of shards) {
+            const res = await findLocalJetton(blockchain, sharded, myJettons, {
+                preferredShard: shard,
+                displayProgress: true
+            });
+            results.push(stringifyResult(res));
+            console.log(`Nonce for shard ${res.prefix_shard} found!`);
+        }
+    }
+    else {
+        const res = await findLocalJetton(blockchain, sharded, myJettons, {
+            displayProgress: true
+        });
+        results.push(stringifyResult(res));
+        console.log(`Nonce for shard ${res.prefix_shard} found!`);
+    }
+    if(args['--out']) {
+        try {
+            await writeFile(args['--out'], `${results.join("\n")}\n`, {encoding: 'utf8'});
+        }
+        catch(e) {
+            console.log(`Failed to write to file ${args['--out']} ${e}`);
+            console.log("Nonces:", results);
+        }
+    }
+    else {
+        console.log("Nonces:", results);
+    }
 }
 
 if(require.main == module) {
