@@ -35,7 +35,7 @@ Which is currently crucial for any mass sending task.
 ### Example
 
 ``` shell
-npx buildTurbo --api-key [your toncenter api key> --type [contract type] --preferred-shard [shard-index] --wallet [your highload wallet address] <path to file with jetton minter addresses>
+npx buildTurbo --api-key [your toncenter api key> --type [contract type] --preferred-shard [comma separated shard-index list] --contract [your previously deployed contract address] <path to file with jetton minter addresses>
 ```
 
 ## Currently supported contracts
