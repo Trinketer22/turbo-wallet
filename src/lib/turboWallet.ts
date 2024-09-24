@@ -6,7 +6,7 @@ import { ShardedHighloadV3 } from './contracts/HighloadWalletV3';
 import { ShardedContract } from './ShardedContract';
 
 export async function loadContracts(addr_list: Address[], bc: Blockchain, testnet: boolean = false, api_key?: string) {
-    let subdomain = testnet ? 'testnet' : '';
+    let subdomain = testnet ? 'testnet.' : '';
     const client = new TonClient({
         endpoint: `https://${subdomain}toncenter.com/api/v2/jsonRPC`,
         apiKey: api_key
