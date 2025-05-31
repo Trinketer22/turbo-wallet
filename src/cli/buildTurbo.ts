@@ -11,6 +11,7 @@ const supported = ['HighloadV3', 'HighloadV2'];
 function help() {
     console.log("--contract <your contract address>");
     console.log("--type <your contract type> (default HighloadV3)");
+    console.log("--search-type subwallet or memonic (default subwallet)");
     console.log("--testnet [is testnet?]");
     console.log("--api-key [Toncenter api key]");
     console.log("--preferred-shard [prefered shard index/dash range/comma separated list of shards]");
@@ -37,6 +38,7 @@ export async function run() {
     const args = arg({
         '--contract': String,
         '--type': String,
+        '--search-type': String,
         '--api-key': String,
         '--testnet': Boolean,
         '--preferred-shard': String,
@@ -114,12 +116,12 @@ export async function run() {
     switch(contractType) {
         case 'highloadv3':
             sharded = await shardedFactory.createHighloadFromAddress(myContract,
-                                                                     'subwallet', 'V3',
+                                                                     searchType, 'V3',
                                                                      contractState.code);
             break;
         case 'highloadv2':
             sharded = await shardedFactory.createHighloadFromAddress(myContract,
-                                                                     'subwallet', 'V2',
+                                                                     searchType, 'V2',
                                                                      contractState.code);
             break;
         default:
