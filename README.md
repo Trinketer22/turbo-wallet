@@ -29,13 +29,14 @@ Which is currently crucial for any mass sending task.
 --contract <your highload wallet address>
 --type <type of your contract> (HighloadV3 by default)
 --api-key [Toncenter api key]
---preferred-shard [prefered shard index]
+--preferred-shard [prefered shard index/comma separated list/n-m range]
+--out [path to output file]
 ```
 
 ### Example
 
 ``` shell
-npx buildTurbo --api-key [your toncenter api key> --type [contract type] --preferred-shard [comma separated shard-index list] --contract [your previously deployed contract address] <path to file with jetton minter addresses>
+npx buildTurbo --api-key [your toncenter api key] --type [contract type] --preferred-shard [comma separated shard-index list] --contract [your previously deployed contract address] <path to file with jetton minter addresses>
 ```
 
 ## Currently supported contracts

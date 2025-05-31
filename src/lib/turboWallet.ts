@@ -76,7 +76,7 @@ export async function findLocalJetton<T extends ShardedContract>(blockchain: Blo
         iterCount++;
         allMatch = true;
         await testWallet.next();
-        if(preferredShard) {
+        if(preferredShard !== undefined) {
             if(!testWallet.inShard(preferredShard)) {
                 allMatch = false;
             }

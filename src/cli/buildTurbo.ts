@@ -13,9 +13,9 @@ function help() {
     console.log("--type <your contract type> (default HighloadV3)");
     console.log("--testnet [is testnet?]");
     console.log("--api-key [Toncenter api key]");
-    console.log("--preferred-shard [prefered shard index or comma separated list of them]");
+    console.log("--preferred-shard [prefered shard index/dash range/comma separated list of shards]");
     console.log("--out [path to output file]");
-    console.log(`${__filename} --wallet <my-wallet> <path-to-jetton-list>`);
+    console.log(`${__filename} --contract <my-wallet> <path-to-jetton-list>`);
 }
 function supportedTypes() {
     console.log(`Supported contract types:\n`);
@@ -49,22 +49,39 @@ export async function run() {
         return;
     }
     if(!args['--contract']) {
-        console.log("Contract address is required!");
+        console.error("Contract address is required!");
         help();
         return;
     }
     if(args._.length == 0) {
-        console.log("Path to file with jetton minter addresses is required!");
+        console.error("Path to file with jetton minter addresses is required!");
         help();
         return;
     }
     let shards = new Set<number>();
     if(args['--preferred-shard']) {
-        const testShards = args['--preferred-shard'].split(',');
+        let testShards: (number | string)[];
+        if(args['--preferred-shard'].indexOf('-')) {
+            const splitRange = args['--preferred-shard'].split('-');
+            if(splitRange.length != 2) {
+                throw RangeError(`Range specifier should containt 2 elements. got ${args['--preferred-shard']}`);
+            }
+            const rangeStart = Number(splitRange[0]);
+            const rangeEnd   = Number(splitRange[1]);
+
+            if(Number.isNaN(rangeStart) || Number.isNaN(rangeEnd) || rangeStart < 0 || rangeEnd < rangeStart) {
+                throw RangeError(`Invalid range specifiers ${splitRange[0]}-${splitRange[1]}`);
+            }
+
+            testShards = [...Array(rangeEnd + 1).keys()].slice(rangeStart);
+        } else {
+            testShards = args['--preferred-shard'].split(',');
+        }
+
         for(let testShard of testShards) {
             const shardIdx = Number(testShard);
-            if(shardIdx < 0 || shardIdx > 15) {
-                throw RangeError(`Shard value should be from 0 to 15`);
+            if(Number.isNaN(shardIdx) || shardIdx < 0 || shardIdx > 15) {
+                throw RangeError(`Shard value should be from 0 to 15 got ${testShard}`);
             }
             shards.add(shardIdx);
         }
