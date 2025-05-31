@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { Blockchain } from '@ton/sandbox';
 import { findLocalJetton, loadContracts } from '../lib/turboWallet';
-import { Address } from '@ton/ton';
+import { Address, Cell } from '@ton/ton';
 import { open, readFile, writeFile } from 'node:fs/promises';
 import arg from 'arg';
 import { ShardedFactory } from '../lib/ShardedFactory';
@@ -11,7 +11,10 @@ const supported = ['HighloadV3', 'HighloadV2'];
 function help() {
     console.log("--contract <your contract address>");
     console.log("--type <your contract type> (default HighloadV3)");
-    console.log("--search-type subwallet or memonic (default subwallet)");
+    console.log("--search-type [subwallet or memonic] (default subwallet)");
+    console.log("--public-key [hex sting] (if contract address is not specified, public key may be passed via comand line argument in subwallet mode)");
+    console.log("--timeout [number] (If contract address is not specified, timeout may be specified for highloadV3 wallet)");
+    console.log("--subwallet-id [number] (if contract address is not specified, subwallet id may be passed via comand line argument in mnemonic mode)");
     console.log("--testnet [is testnet?]");
     console.log("--api-key [Toncenter api key]");
     console.log("--preferred-shard [prefered shard index/dash range/comma separated list of shards]");
@@ -39,6 +42,9 @@ export async function run() {
         '--contract': String,
         '--type': String,
         '--search-type': String,
+        '--public-key': String,
+        '--subwallet-id': Number,
+        '--timeout': Number,
         '--api-key': String,
         '--testnet': Boolean,
         '--preferred-shard': String,
@@ -48,27 +54,72 @@ export async function run() {
     const contractType = (args['--type'] ?? 'HighloadV3').toLowerCase();
     if(contractType == '?') {
         supportedTypes();
-        return;
+        return -1;
     }
-    if(!args['--contract']) {
-        console.error("Contract address is required!");
-        help();
-        return;
+    if(!supported.find(v => v.toLowerCase() == contractType)) {
+        console.log(`Contract type ${contractType} is not supported!`);
+        supportedTypes();
+        return -1;
     }
-    if(args._.length == 0) {
-        console.error("Path to file with jetton minter addresses is required!");
-        help();
-        return;
-    }
+
+    let publicKey: string;
+    let timeout: number;
+    let fromParams: boolean;
+    let contractAddress: Address | undefined;
+    let contractCode: Cell | undefined;
+    let subwalletId = 0;
+
 
     let searchType: 'subwallet' | 'mnemonic' = "subwallet";
 
     if(args['--search-type']) {
         searchType = args['--search-type'] as any;
         if(!(searchType == "subwallet" || searchType == "mnemonic")) {
-            throw RangeError("Search type subwallet or mnemonic is supported");
+            throw new RangeError("Search type subwallet or mnemonic is supported");
         }
     }
+
+    if(args['--subwallet-id']) {
+        if(searchType !== 'mnemonic') {
+            throw new Error("Subwallet option is only allowed in mnemonic search mode");
+        }
+        subwalletId = Number(args['--subwallet-id']);
+        if(Number.isNaN(subwalletId)) {
+            throw new TypeError(`Failed to parse subwellet id ${args['--subwallet-id']}`);
+        }
+    }
+    if(!args['--contract']) {
+        if(contractType == 'highloadv2' || contractType == 'highloadv3' && searchType !== 'mnemonic') {
+            if(!args['--public-key']) {
+                console.error("If contract is not specified, public key is required");
+                help();
+                return -1;
+            }
+            publicKey = args['--public-key'];
+        } else if(searchType == 'mnemonic') {
+            publicKey = ''.padStart(64, '0');
+        }
+
+        if(contractType == 'highloadv3') {
+            if(!args['--timeout']) {
+                console.error("If contract is not specified, timeout is required for HighloadV3");
+                help();
+                return -1;
+            }
+            timeout = args['--timeout'];
+        }
+        fromParams = true;
+    } else {
+        fromParams = false;
+        contractAddress = Address.parse(args['--contract']);
+    }
+
+    if(args._.length == 0) {
+        console.error("Path to file with jetton minter addresses is required!");
+        help();
+        return -1;
+    }
+
 
     let shards = new Set<number>();
     if(args['--preferred-shard']) {
@@ -100,34 +151,51 @@ export async function run() {
     }
     const isTestnet = args['--testnet'];
 
-    const myContract = Address.parse(args['--contract']);
+
     const myJettons  = await readJettons(args._[0]);
 
+    const contractToLoad = [...myJettons];
+
+    if(!fromParams) {
+        if(contractAddress) {
+            contractToLoad.push(contractAddress);
+        } else {
+            console.error("--contract is required");
+            help();
+            return -1;
+        }
+    }
     const blockchain = await Blockchain.create();
-    const contracts  = await loadContracts([...myJettons, myContract], blockchain, isTestnet, args['--api-key']);
+    const contracts  = await loadContracts(contractToLoad, blockchain, isTestnet, args['--api-key']);
 
     const shardedFactory = new ShardedFactory(blockchain);
 
-    const contractState = contracts.get(myContract.toRawString());
-    if(!contractState) {
-        throw new Error("Failed to load contract");
+    if(contractAddress) {
+        const contractState = contracts.get(contractAddress.toRawString());
+        if(!contractState) {
+            throw new Error("Failed to load contract");
+        }
+        contractCode = contractState.code;
     }
+
     let sharded: ShardedContract;
     switch(contractType) {
         case 'highloadv3':
-            sharded = await shardedFactory.createHighloadFromAddress(myContract,
+            sharded = contractAddress ? await shardedFactory.createHighloadFromAddress(contractAddress,
                                                                      searchType, 'V3',
-                                                                     contractState.code);
+                                                                     contractCode)
+                                      : await shardedFactory.createHighloadFromParameters(searchType, 'V3', {publicKey: publicKey!, timeout: timeout!, subwalletId});
             break;
         case 'highloadv2':
-            sharded = await shardedFactory.createHighloadFromAddress(myContract,
+            sharded = contractAddress ? await shardedFactory.createHighloadFromAddress(contractAddress,
                                                                      searchType, 'V2',
-                                                                     contractState.code);
+                                                                     contractCode)
+                                      : await shardedFactory.createHighloadFromParameters(searchType, 'V2', {publicKey: publicKey!, subwalletId});
             break;
         default:
             console.log(`Contract type ${args['--type']} is not supported`);
             help();
-            return;
+            return -1;
     }
 
     const stringifyResult = (res: Awaited<ReturnType<typeof findLocalJetton>>) => {
