@@ -12,9 +12,9 @@ export class ShardedFactory {
     constructor(blockchain: Blockchain) {
         this.blockchain = blockchain;
     }
-    async createHighloadFromAddress(address: Address, searchType: ShardedHighloadV3['type'], type: 'V3', code: Cell): Promise<ShardedHighloadV3>;
-    async createHighloadFromAddress(address: Address, searchType: ShardedHighloadV2['type'], type: 'V2', code: Cell): Promise<ShardedHighloadV2>;
-    async createHighloadFromAddress(address: Address, searchType: ShardedHighloadV3['type'], type: 'V3' | 'V2', code: Cell) {
+    async createHighloadFromAddress(address: Address, searchType: ShardedHighloadV3['type'], type: 'V3', code?: Cell): Promise<ShardedHighloadV3>;
+    async createHighloadFromAddress(address: Address, searchType: ShardedHighloadV2['type'], type: 'V2', code?: Cell): Promise<ShardedHighloadV2>;
+    async createHighloadFromAddress(address: Address, searchType: ShardedHighloadV3['type'], type: 'V3' | 'V2', code?: Cell) {
         if(type == 'V3') {
             const curWallet = this.blockchain.openContract(HighloadWalletV3.createFromAddress(address));
 
