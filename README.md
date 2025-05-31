@@ -48,13 +48,13 @@ npx buildTurbo --api-key [your toncenter api key] --type [contract type] --prefe
 ### Bruteforce mnemonic for all shards with contract subwallet from parameters
 
 ``` shell
-npx buildTurbo --type highloadV3 --search-type mnemonic --preferred-shard 0-15 --subwallet-id 1337 --out presets.json <path-to-jetton-list.txt>
+npx buildTurbo --type highloadV3 --search-type mnemonic --preferred-shard 0-15 --timeout 3600 --subwallet-id 1337 --out presets.json <path-to-jetton-list.txt>
 ```
 
 ### Bruteforce subwallet id for all shards with contract public key from parameters
 
 ``` shell
-npx buildTurbo --type highloadV3 --preferred-shard 0-15 --public-key 24d5cbf58df14bcce7ec0d9b091b7e823d564a682183bee606163429367b61c2 --out presets.json <path-to-jetton-list.txt>
+npx buildTurbo --type highloadV3 --preferred-shard 0-15 --timeout 3600 --public-key 24d5cbf58df14bcce7ec0d9b091b7e823d564a682183bee606163429367b61c2 --out presets.json <path-to-jetton-list.txt>
 ```
 
 ## Currently supported contracts
