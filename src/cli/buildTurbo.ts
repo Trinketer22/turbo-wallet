@@ -58,10 +58,20 @@ export async function run() {
         help();
         return;
     }
+
+    let searchType: 'subwallet' | 'mnemonic' = "subwallet";
+
+    if(args['--search-type']) {
+        searchType = args['--search-type'] as any;
+        if(!(searchType == "subwallet" || searchType == "mnemonic")) {
+            throw RangeError("Search type subwallet or mnemonic is supported");
+        }
+    }
+
     let shards = new Set<number>();
     if(args['--preferred-shard']) {
         let testShards: (number | string)[];
-        if(args['--preferred-shard'].indexOf('-')) {
+        if(args['--preferred-shard'].indexOf('-') > 0) {
             const splitRange = args['--preferred-shard'].split('-');
             if(splitRange.length != 2) {
                 throw RangeError(`Range specifier should containt 2 elements. got ${args['--preferred-shard']}`);
