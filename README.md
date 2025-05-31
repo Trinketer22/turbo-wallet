@@ -26,16 +26,16 @@ Which is currently crucial for any mass sending task.
 ### Help
 
 ``` shell
---contract [your contract address] (used to pick up initial contract configuration)"
---type <your contract type> (default HighloadV3. ? will print available list)"
---search-type [subwallet or memonic] (Search is performed either by bruteforcing subwalletId or the mnemonic->pulic key default subwallet)"
---public-key [hex sting] (if contract address is not specified, public key may be passed via comand line argument in subwallet mode)"
---timeout [number] (If contract address is not specified, timeout may be specified for highloadV3 wallet)"
---subwallet-id [number] (if contract address is not specified, subwallet id may be passed via comand line argument in mnemonic mode)"
---testnet [is testnet?]"
---api-key [Toncenter api key]"
---preferred-shard [prefered shard index/dash range/comma separated list of shards]"
---out [path to output file]"
+--contract [your contract address] (used to pick up initial contract configuration)
+--type <your contract type> (default HighloadV3. ? will print available list)
+--search-type [subwallet or memonic] (Search is performed either by bruteforcing subwalletId or the mnemonic->pulic key default subwallet)
+--public-key [hex sting] (if contract address is not specified, public key may be passed via comand line argument in subwallet mode)
+--timeout [number] (If contract address is not specified, timeout may be specified for highloadV3 wallet)
+--subwallet-id [number] (if contract address is not specified, subwallet id may be passed via comand line argument in mnemonic mode)
+--testnet [is testnet?]
+--api-key [Toncenter api key]
+--preferred-shard [prefered shard index/dash range/comma separated list of shards]
+--out [path to output file]
 
 ```
 
